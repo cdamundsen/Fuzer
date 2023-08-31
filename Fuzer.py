@@ -1,26 +1,13 @@
 #! /usr/bin/env python
 
-"""
-Fuzer.py
-
-This script takes a list of mp3 files on the command line, strips the ID3 tags
-from them, concatenates them adds the ID3 tags from the first file to the
-beginning (if they're v2 tags) or the end (if they're v1 tags) and saves the
-file in the file name specified on the command line.
-
-The files are combined in the order they appear on the command line.
-
-Craig Amundsen
-August 11, 2013
-"""
-
 import os
 import sys
 
+import click
 from mutagen.easyid3 import EasyID3
 
 ## Functions ##
-def getOut(msg = ""):
+def get_out(msg = ""):
     if msg:
         print("")
         print(msg)
@@ -29,11 +16,11 @@ def getOut(msg = ""):
     print("   OR: Fuzer.py --help")
     print("")
     sys.exit(0)
-    ## getOut ##
+    ## get_out ##
 
-def splitTagsFromMusic(mp3):
+def split_tags_from_sound(mp3):
     """
-    # splitTagsFromMusic(mp3)
+    # split_tags_from_sound(mp3)
     #
     # Takes an mp3 file (read into a String via an 'rb' open) and figures out
     # where the ID3 tags are and separates it from the mp3 portion of the mp3
@@ -42,32 +29,32 @@ def splitTagsFromMusic(mp3):
     # Arguments:
     #  mp3 - the whole mp3 file
     #
-    # Returns: (tagType, id3, mp3) where tag type is 'v1' or 'v2', id3 is the
+    # Returns: (tag_type, id3, mp3) where tag type is 'v1' or 'v2', id3 is the
     #          tag portion of the file, and mp3 is the sound portion of the
     #          file.
     """
     tags = None
     music = None
     if mp3.find(b'TAG') == 0:
-        tagType = 'v1'
+        tag_type = 'v1'
         tags = mp3[ : 128]
         music = mp3[128 : ]
     elif mp3.find(b'ID3') == 0:
-        tagType = 'v2'
+        tag_type = 'v2'
         # The tags are at the start of the file
         # v1 tags, 128 bytes long. Assuming extended v1 tags are not used
-        tagSize = headerSize(mp3[6:10])
+        tagSize = header_size(mp3[6:10])
         tags = mp3[ : tagSize]
         music = mp3[tagSize : ]
     else:
         print("tags not at the start")
-    return tagType, tags, music
-    ## splitTagsFromMusic ##
+    return tag_type, tags, music
+    ## split_tags_from_sound ##
 
 
-def headerSize(sizeBytes):
+def header_size(size_bytes):
     """
-    # headerSize(sizeBytes)
+    # header_size(size_bytes)
     #
     # Takes bytes 6-10 of the tag section and calculates the size of the tag
     # portion.
@@ -78,12 +65,12 @@ def headerSize(sizeBytes):
     # are ignored, so a 257 bytes long tag is represented as $00 00 02 01.
     #
     # Arguments:
-    #  sizeBytes - the contents of bytes 6-10 of the tag portion of the file
+    #  size_bytes - the contents of bytes 6-10 of the tag portion of the file
     #
     # Returns: an int, the size of the tag region of the file
     """
     size = 0
-    sizeList = list(sizeBytes)
+    sizeList = list(size_bytes)
     sizeList.reverse()
     for i, c in enumerate(sizeList):
         try:
@@ -95,129 +82,91 @@ def headerSize(sizeBytes):
             print(f"ord(c) = {ord(c)}")
             raise
     return size
-    ## headerSize ##
+    ## header_size ##
 
+
+@click.command()
+@click.argument('out_name', type=click.File('wb'))
+@click.argument('in_names', type=click.File('rb'), nargs=-1)
+def fuzer(out_name, in_names):
+    """
+    This script takes a list of mp3 files on the command line, strips the ID3
+    tags concatenates the sound portions, adds the ID3 tags from the first file
+    to the beginning (if they're v2 tags) or the end (if they're v1 tags) and
+    saves the file in the file name specified on the command line.
+
+    The input files are combined in the order specified by disk and track info
+    in ID3 tags
+
+    Arguments:
+
+        out_name: the name of the file into which the input mp3 files are
+        concatenated.
+
+        in_names: the individual mp3 files that are going to be combined.
+    """
+    problems = []
+    if os.path.isfile(out_name.name):
+        # Don't overwrite an existing file
+        get_out(f"{out_name.name} already exists")
+    
+    print("Checking tags for file ordering...")
+    sound_parts = []
+    track_map = {}
+    for i, in_file in enumerate(in_names):
+        file_name = os.path.basename(in_file.name)
+        tag_info = EasyID3(in_file.name)
+
+        total_discs = 0
+
+        try:
+            disc_index, disc_count = [int(x) for x in tag_info["discnumber"][0].split("/")]
+        except:
+            problems.append(f"{file_name} missing disc info")
+            continue
+
+        total_discs = max(disc_count, total_discs)
+        if disc_index not in track_map:
+            track_map[disc_index] = {}
+
+        try:
+            track_index, track_count = [int(x) for x in tag_info["tracknumber"][0].split("/")]
+        except:
+            problems.append(f"{file_name} missing track info")
+            continue
+        
+        track_map[disc_index][track_index] = in_file
+
+    if len(track_map) != total_discs:
+        problems.append(f"Expected {total_discs} only found {len(track_map)}")
+
+    if problems:
+        get_out("\n".join(problems))
+    
+    for disc_index in track_map:
+        max_track = max(track_map[disc_index].keys())
+        if len(track_map[disc_index]) != max_track:
+            problems.append(f"Disc {disc_index} expected {max_track} tracks only found {len(track_map[disc_index])}")
+    if problems:
+        get_out("\n".join(problems))
+
+    is_first = True
+    first_file_tags = None
+    for disc_number in sorted(track_map):
+        for track_number in sorted(track_map[disc_number]):
+            in_file = track_map[disc_number][track_number]
+            data = in_file.read()
+            tag_type, tags, sound = split_tags_from_sound(data)
+            if is_first:
+                first_file_tags = tags
+                is_first = False
+            if tag_type == 'v2':
+                out_name.write(first_file_tags)
+            out_name.write(sound)
+    if tag_type == "v1":
+        out_name.write(first_file_tags)
+            
 
 ## Main ##
 if __name__ == '__main__':
-    if len(sys.argv) in (1, 3):
-        getOut()
-    if len(sys.argv) == 2:
-        if sys.argv[1] in ('--help', '-h'):
-            getOut(__doc__)
-        else:
-            getOut()
-
-    outName = sys.argv[-1]
-    inNames = sys.argv[1 : -1]
-
-    problems = []
-    problems += ['%s is not a file' % x for x in inNames if not os.path.isfile(x)]
-
-    if os.path.isfile(outName):
-        problems.append("%s already exists" % outName)
-
-    if problems:
-        getOut("\n".join(problems))
-
-    print(f'{len(inNames)} files will be combined in this order:')
-    for name in inNames:
-        print(f'  {name}')
-    print(f'{len(inNames)} files will be combined')
-    answer = input("Continue?: [y]")
-    if not answer:
-        # Default to 'y'
-        answer = 'y'
-    if answer not in ('Y', 'y'):
-        getOut("No file writen")
-
-    soundParts = []
-    trackMap = {}
-    print('Reading files...')
-    for i, name in enumerate(inNames):
-        tagInfo = EasyID3(name)
-        try:
-            trackIndex, trackCount = [int(x) for x in tagInfo["tracknumber"][0].split("/")]
-        except:
-            print(tagInfo.keys())
-            print("")
-            raise
-        try:
-            discIndex, discCount = [int(x) for x in tagInfo["discnumber"][0].split("/")]
-        except:
-            print(sorted(tagInfo.keys()))
-            print("")
-            print(tagInfo["discnumber"][0])
-            print("")
-            raise
-
-        discMax = None
-        if trackMap:
-            if discCount > max(trackMap.keys()):
-                discMax = discCount
-        else:
-            discMax = discCount
-
-        if discMax:
-            for j in range(1, discMax + 1):
-                if j not in trackMap:
-                    trackMap[j] = {}
-
-        trackMax = None
-        if trackMap[discIndex]:
-            if trackCount > max(trackMap[discIndex].keys()):
-                trackMax = trackCount
-        else:
-            trackMax = trackCount
-
-        if trackMax:
-            for j in range(1, trackMax + 1):
-                trackMap[discIndex][j] = None
-
-        inf = open(name, 'rb')
-        data = inf.read()
-        if i == 0:
-            tagType, tags, sound = splitTagsFromMusic(data)
-        else:
-            d1, d2, sound = splitTagsFromMusic(data)
-
-        if trackMap[discIndex][trackIndex]:
-            # We've already seen this track 
-            problems.append("Disc %d, Track %d - more than one file" % (discIndex, trackIndex))
-
-        trackMap[discIndex][trackIndex] = sound
-
-        sys.stdout.write("*")
-        if ((i + 1) % 100) == 0:
-            sys.stdout.write("\n")
-        sys.stdout.flush()
-            
-    for d in sorted(trackMap.keys()):
-        for t in sorted(trackMap[d].keys()):
-            if not trackMap[d][t]:
-                problems.append("Disc %d, Track %d - no sound found" % (d, t))
-
-    if problems:
-        getOut("\n".join(problems))
-
-    print(f"\n{tagType}  tags")
-
-    print(f'Writing {outName}...')
-    sys.stdout.flush()
-    outf = open(outName, 'wb')
-    if tagType == 'v2':
-        outf.write(tags)
-    i = 0
-    for d in sorted(trackMap.keys()):
-        for t in sorted(trackMap[d].keys()):
-            outf.write(trackMap[d][t])
-
-            sys.stdout.write("#")
-            i += 1
-            if (i % 100) == 0:
-                sys.stdout.write("\n")
-            sys.stdout.flush()
-    if tagType == 'v1':
-        outf.write(tags)
-    outf.close()
-    print('\nDone')
+    fuzer()
