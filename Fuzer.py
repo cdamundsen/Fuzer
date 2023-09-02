@@ -5,6 +5,8 @@ import sys
 
 import click
 from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3, APIC
+from mutagen.mp3 import MP3  
 
 ## Functions ##
 def get_out(msg = ""):
@@ -12,7 +14,7 @@ def get_out(msg = ""):
         print("")
         print(msg)
     print("")
-    print("Usage: Fuzer.py <list of mp3 files> newFileName")
+    print("Usage: Fuzer.py outputFileName <list of mp3 files>")
     print("   OR: Fuzer.py --help")
     print("")
     sys.exit(0)
@@ -85,35 +87,27 @@ def header_size(size_bytes):
     ## header_size ##
 
 
-@click.command()
-@click.argument('out_name', type=click.File('wb'))
-@click.argument('in_names', type=click.File('rb'), nargs=-1)
-def fuzer(out_name, in_names):
+def sort_tracks(in_names):
     """
-    This script takes a list of mp3 files on the command line, strips the ID3
-    tags concatenates the sound portions, adds the ID3 tags from the first file
-    to the beginning (if they're v2 tags) or the end (if they're v1 tags) and
-    saves the file in the file name specified on the command line.
-
-    The input files are combined in the order specified by disk and track info
-    in ID3 tags
+    Given the list of click.File ('rb') input mp3 files, reads the ID3 tags to
+    determine the order of the tracks and saves a dictionary keyed on disc
+    number, with sub-dictionaries keyed on track number with values that are
+    individual mp3 files.
 
     Arguments:
 
-        out_name: the name of the file into which the input mp3 files are
-        concatenated.
+        in_names: a list of click.File instances that are the mp3 files that
+        are being combined
 
-        in_names: the individual mp3 files that are going to be combined.
+    Returns: the above-described dictionary
+
+    Side Effects: If any problmes are encountered, missing track numbers, disc
+    numbers, etc, the program exits after printing the list of problems encountered
     """
-    problems = []
-    if os.path.isfile(out_name.name):
-        # Don't overwrite an existing file
-        get_out(f"{out_name.name} already exists")
-    
     print("Checking tags for file ordering...")
-    sound_parts = []
+    problems = []
     track_map = {}
-    for i, in_file in enumerate(in_names):
+    for in_file in in_names:
         file_name = os.path.basename(in_file.name)
         tag_info = EasyID3(in_file.name)
 
@@ -150,11 +144,28 @@ def fuzer(out_name, in_names):
     if problems:
         get_out("\n".join(problems))
 
+    return track_map
+    ## sort_tracks ##
+
+
+def write_file(tracks, out_name):
+    """
+    Given the dictionary of tracks, combines all the individual mp3 files into
+    one big file. Adds the ID3 tags from the first file to the big file
+
+    Arguments:
+    
+        tracks: the dictionary containing all the tracks to be combined
+
+        out_name: the click.File opened in 'wb' mode into which the mp3 files
+        from the tracks dictionary are combined.
+    """
+    print(f"Writing tracks to {out_name.name}...")
     is_first = True
     first_file_tags = None
-    for disc_number in sorted(track_map):
-        for track_number in sorted(track_map[disc_number]):
-            in_file = track_map[disc_number][track_number]
+    for disc_number in sorted(tracks):
+        for track_number in sorted(tracks[disc_number]):
+            in_file = tracks[disc_number][track_number]
             data = in_file.read()
             tag_type, tags, sound = split_tags_from_sound(data)
             if is_first:
@@ -165,6 +176,84 @@ def fuzer(out_name, in_names):
             out_name.write(sound)
     if tag_type == "v1":
         out_name.write(first_file_tags)
+    out_name.close()
+    ## write_file ##
+
+
+def update_tags(output_file):
+    """
+    When the big mp3 file is created the ID3 tags from the first track are
+    copied into the file. This function copies the album tag into the title tag
+    and changes the tracknumber and discnumber tags to 1/1.
+
+    Arguments:
+
+        output_file: the name of the mp3 file.
+    """
+    print("Fixing tags...")
+    mp3file = MP3(output_file, ID3=EasyID3)
+    mp3file['title'] = mp3file['album']
+    mp3file['tracknumber'] = ['1/1']
+    mp3file['discnumber'] = ['1/1']
+    mp3file.save()
+    ## update_tags ##
+
+
+def add_cover_art(output_file, cover_file):
+    """
+    Adds a cover image to the mp3 that was created
+
+    Arguments:
+
+        output_file: the name of the output file (not a click.File)
+
+        cover_file: a jpeg image file that is a click.File in 'rb' mode
+    """
+    print("Adding cover art...")
+    #with open(cover_file, 'rb') as image_data:
+        #album_art = image_data.read()
+    album_art = cover_file.read()
+    audio = MP3(output_file, ID3=ID3)
+    audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=album_art))
+    audio.save(v2_version=3)
+    ## add_cover_art ##
+
+
+@click.command()
+@click.option('--cover', '-c', type=click.File('rb'), default=None, help="JPEG cover art file")
+@click.argument('out_name', type=click.File('wb'))
+@click.argument('in_names', type=click.File('rb'), nargs=-1)
+def fuzer(cover, out_name, in_names):
+    """
+    This script takes a list of mp3 files on the command line, strips the ID3
+    tags concatenates the sound portions, adds the ID3 tags from the first file
+    to the beginning (if they're v2 tags) or the end (if they're v1 tags) and
+    saves the file in the file name specified on the command line.
+
+    The input files are combined in the order specified by disk and track info
+    in ID3 tags
+
+    Arguments:
+
+        cover: optional jpeg file containing a cover image for the combined files
+
+        out_name: the name of the file into which the input mp3 files are
+        concatenated.
+
+        in_names: the individual mp3 files that are going to be combined.
+    """
+    if os.path.isfile(out_name.name):
+        # Don't overwrite an existing file
+        get_out(f"ERROR: {out_name.name} already exists")
+    
+    track_map = sort_tracks(in_names)
+    write_file(track_map, out_name)
+    update_tags(out_name.name)
+
+    if cover:
+        add_cover_art(out_name.name, cover)
+
+    print("All done.")
             
 
 ## Main ##
