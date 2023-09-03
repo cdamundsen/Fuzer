@@ -24,25 +24,25 @@ def split_tags_from_sound(mp3):
     """
     # split_tags_from_sound(mp3)
     #
-    # Takes an mp3 file (read into a String via an 'rb' open) and figures out
+    # Takes an mp3 file (read into a String via an "rb" open) and figures out
     # where the ID3 tags are and separates it from the mp3 portion of the mp3
     # file.
     #
     # Arguments:
     #  mp3 - the whole mp3 file
     #
-    # Returns: (tag_type, id3, mp3) where tag type is 'v1' or 'v2', id3 is the
+    # Returns: (tag_type, id3, mp3) where tag type is "v1" or "v2", id3 is the
     #          tag portion of the file, and mp3 is the sound portion of the
     #          file.
     """
     tags = None
     music = None
-    if mp3.find(b'TAG') == 0:
-        tag_type = 'v1'
+    if mp3.find(b"TAG") == 0:
+        tag_type = "v1"
         tags = mp3[ : 128]
         music = mp3[128 : ]
-    elif mp3.find(b'ID3') == 0:
-        tag_type = 'v2'
+    elif mp3.find(b"ID3") == 0:
+        tag_type = "v2"
         # The tags are at the start of the file
         # v1 tags, 128 bytes long. Assuming extended v1 tags are not used
         tagSize = header_size(mp3[6:10])
@@ -87,27 +87,44 @@ def header_size(size_bytes):
     ## header_size ##
 
 
-def sort_tracks(in_names):
+def sort_tracks(source_files, in_file_order):
     """
-    Given the list of click.File ('rb') input mp3 files, reads the ID3 tags to
+    Constructs a dictionary of dictionaries where the outer keys the disc
+    numbers and the keys of the inner dictionaries are the track numbers.
+    The values are the click-File ("rb") files passed in the command line.
+    Generally, the disc and track numbers will be read from the ID3 tags in the
+    files and error checking to ensure that there are no gaps in the disc or
+    track numbers. The User, though is allowed to specify that the tracks
+    should be combined in the order in which they were presented on the command
+    line. In this case, the outer dictionary has a single disc key of 1 and the inner dictionary keys are the index of the file as passed in by the 
+    Given the list of click.File ("rb") input mp3 files, reads the ID3 tags to
     determine the order of the tracks and saves a dictionary keyed on disc
     number, with sub-dictionaries keyed on track number with values that are
     individual mp3 files.
 
     Arguments:
 
-        in_names: a list of click.File instances that are the mp3 files that
+        source_files: a list of click.File instances that are the mp3 files that
         are being combined
+
+        in_file_order: Boolean, if True return the source_files in the order they
+        appeared on the command line, if False sort the source_files by disc and
+        track order in the ID3 tags
 
     Returns: the above-described dictionary
 
     Side Effects: If any problmes are encountered, missing track numbers, disc
     numbers, etc, the program exits after printing the list of problems encountered
     """
+    if in_file_order:
+        print("Using the command line order...")
+        return source_files
+
     print("Checking tags for file ordering...")
     problems = []
     track_map = {}
-    for in_file in in_names:
+    track_list = []
+    for in_file in source_files:
         file_name = os.path.basename(in_file.name)
         tag_info = EasyID3(in_file.name)
 
@@ -136,15 +153,19 @@ def sort_tracks(in_names):
 
     if problems:
         get_out("\n".join(problems))
-    
+
     for disc_index in track_map:
         max_track = max(track_map[disc_index].keys())
         if len(track_map[disc_index]) != max_track:
             problems.append(f"Disc {disc_index} expected {max_track} tracks only found {len(track_map[disc_index])}")
     if problems:
         get_out("\n".join(problems))
-
-    return track_map
+    
+    for d in sorted(track_map):
+        for t in sorted(track_map[d]):
+            track_list.append(track_map[d][t])
+    
+    return track_list
     ## sort_tracks ##
 
 
@@ -157,26 +178,24 @@ def write_file(tracks, out_name):
     
         tracks: the dictionary containing all the tracks to be combined
 
-        out_name: the click.File opened in 'wb' mode into which the mp3 files
+        out_name: the click.File opened in "wb" mode into which the mp3 files
         from the tracks dictionary are combined.
     """
     print(f"Writing tracks to {out_name.name}...")
     is_first = True
     first_file_tags = None
-    for disc_number in sorted(tracks):
-        for track_number in sorted(tracks[disc_number]):
-            in_file = tracks[disc_number][track_number]
-            data = in_file.read()
-            tag_type, tags, sound = split_tags_from_sound(data)
-            if is_first:
-                first_file_tags = tags
-                is_first = False
-            if tag_type == 'v2':
-                out_name.write(first_file_tags)
-            out_name.write(sound)
+    for in_file in tracks:
+        data = in_file.read()
+        tag_type, tags, sound = split_tags_from_sound(data)
+        if is_first:
+            first_file_tags = tags
+            is_first = False
+        if tag_type == "v2":
+            out_name.write(first_file_tags)
+        out_name.write(sound)
     if tag_type == "v1":
         out_name.write(first_file_tags)
-    out_name.close()
+        out_name.close()
     ## write_file ##
 
 
@@ -192,9 +211,9 @@ def update_tags(output_file):
     """
     print("Fixing tags...")
     mp3file = MP3(output_file, ID3=EasyID3)
-    mp3file['title'] = mp3file['album']
-    mp3file['tracknumber'] = ['1/1']
-    mp3file['discnumber'] = ['1/1']
+    mp3file["title"] = mp3file["album"]
+    mp3file["tracknumber"] = ["1/1"]
+    mp3file["discnumber"] = ["1/1"]
     mp3file.save()
     ## update_tags ##
 
@@ -207,27 +226,28 @@ def add_cover_art(output_file, cover_file):
 
         output_file: the name of the output file (not a click.File)
 
-        cover_file: a jpeg image file that is a click.File in 'rb' mode
+        cover_file: a jpeg image file that is a click.File in "rb" mode
     """
     print("Adding cover art...")
-    #with open(cover_file, 'rb') as image_data:
+    #with open(cover_file, "rb") as image_data:
         #album_art = image_data.read()
     album_art = cover_file.read()
     audio = MP3(output_file, ID3=ID3)
-    audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=album_art))
+    audio.tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc=u"Cover", data=album_art))
     audio.save(v2_version=3)
     ## add_cover_art ##
 
 
 @click.command()
-@click.option('--cover', '-c', type=click.File('rb'), default=None, help="JPEG cover art file")
-@click.argument('out_name', type=click.File('wb'))
-@click.argument('in_names', type=click.File('rb'), nargs=-1)
-def fuzer(cover, out_name, in_names):
+@click.option("--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file")
+@click.option("--file-order", "-fo", is_flag=True)
+@click.argument("out_name", type=click.File("wb"))
+@click.argument("source_files", type=click.File("rb"), nargs=-1)
+def fuzer(cover, file_order, out_name, source_files):
     """
     This script takes a list of mp3 files on the command line, strips the ID3
     tags concatenates the sound portions, adds the ID3 tags from the first file
-    to the beginning (if they're v2 tags) or the end (if they're v1 tags) and
+    to the beginning (if they"re v2 tags) or the end (if they"re v1 tags) and
     saves the file in the file name specified on the command line.
 
     The input files are combined in the order specified by disk and track info
@@ -240,14 +260,14 @@ def fuzer(cover, out_name, in_names):
         out_name: the name of the file into which the input mp3 files are
         concatenated.
 
-        in_names: the individual mp3 files that are going to be combined.
+        source_files: the individual mp3 files that are going to be combined.
     """
     if os.path.isfile(out_name.name):
-        # Don't overwrite an existing file
+        # Don"t overwrite an existing file
         get_out(f"ERROR: {out_name.name} already exists")
     
-    track_map = sort_tracks(in_names)
-    write_file(track_map, out_name)
+    track_list = sort_tracks(source_files, file_order)
+    write_file(track_list, out_name)
     update_tags(out_name.name)
 
     if cover:
@@ -257,5 +277,5 @@ def fuzer(cover, out_name, in_names):
             
 
 ## Main ##
-if __name__ == '__main__':
+if __name__ == "__main__":
     fuzer()
