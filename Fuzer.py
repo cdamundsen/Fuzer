@@ -8,18 +8,25 @@ from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC
 from mutagen.mp3 import MP3  
 
-## Functions ##
-def get_out(msg = ""):
-    if msg:
-        print("")
-        print(msg)
-    print("")
-    print("Usage: Fuzer.py outputFileName <list of mp3 files>")
-    print("   OR: Fuzer.py --help")
-    print("")
-    sys.exit(0)
-    ## get_out ##
 
+class TrackError(Exception):
+    def __init__(self, problems):
+        sys.tracebacklimit = 0 # Don't show traceback for this exception
+        self.problems = problems
+        self.problem_string = "\n".join(problems)
+        self.message = self.problem_string
+        super().__init__(self.message)
+
+
+class AlreadyExistsError(Exception):
+    def __init__(self, file_name):
+        sys.tracebacklimit = 0 # Don't show traceback for this exception
+        self.file_name = file_name
+        self.message = f"{self.file_name} already exists. Delete or move it"
+        super().__init__(self.message)
+
+
+## Functions ##
 def split_tags_from_sound(mp3):
     """
     # split_tags_from_sound(mp3)
@@ -123,12 +130,13 @@ def sort_tracks(source_files, in_file_order):
     print("Checking tags for file ordering...")
     problems = []
     track_map = {}
+    tracks_per_disc = {}
     track_list = []
     for in_file in source_files:
         file_name = os.path.basename(in_file.name)
         tag_info = EasyID3(in_file.name)
 
-        total_discs = 0
+        total_discs = None
 
         try:
             disc_index, disc_count = [int(x) for x in tag_info["discnumber"][0].split("/")]
@@ -136,7 +144,10 @@ def sort_tracks(source_files, in_file_order):
             problems.append(f"{file_name} missing disc info")
             continue
 
-        total_discs = max(disc_count, total_discs)
+        if not total_discs:
+            total_discs = disc_count
+        elif total_discs != disc_count:
+            raise TrackError(["Disc count mismatch {total_discs} != {disc_count}"])
         if disc_index not in track_map:
             track_map[disc_index] = {}
 
@@ -145,21 +156,31 @@ def sort_tracks(source_files, in_file_order):
         except:
             problems.append(f"{file_name} missing track info")
             continue
+
+        if disc_index not in tracks_per_disc:
+            tracks_per_disc[disc_index] = track_count
+        elif tracks_per_disc[disc_index] != track_count:
+            raise TrackError([f"Disc {disc_index} has mutliple total tracks values {tracks_per_disc[disc_index]}, {track_count}"])
         
         track_map[disc_index][track_index] = in_file
 
     if len(track_map) != total_discs:
         problems.append(f"Expected {total_discs} only found {len(track_map)}")
 
+    for d in sorted(tracks_per_disc):
+        if tracks_per_disc[d] != len(track_map[d]):
+            problems.append(f"Disc {d} should have {tracks_per_disc[d]} tracks only {len(track_map[d])} found")
+
+
     if problems:
-        get_out("\n".join(problems))
+        raise TrackError(problems)
 
     for disc_index in track_map:
         max_track = max(track_map[disc_index].keys())
         if len(track_map[disc_index]) != max_track:
             problems.append(f"Disc {disc_index} expected {max_track} tracks only found {len(track_map[disc_index])}")
     if problems:
-        get_out("\n".join(problems))
+        raise TrackError(problems)
     
     for d in sorted(track_map):
         for t in sorted(track_map[d]):
@@ -264,7 +285,7 @@ def fuzer(cover, file_order, out_name, source_files):
     """
     if os.path.isfile(out_name.name):
         # Don"t overwrite an existing file
-        get_out(f"ERROR: {out_name.name} already exists")
+        raise AlreadyExistsError(out_name.name)
     
     track_list = sort_tracks(source_files, file_order)
     write_file(track_list, out_name)
