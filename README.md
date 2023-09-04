@@ -25,3 +25,11 @@ There are a few command line options as well:
 - Fuzer only handles mp3 files
 - When adding a cover image, Fuzer assumes it is a jpeg
 - When playing the otuput file with Quicktime Player on Mac OS, it only plays the first track that was added to the file. When playing it with iTunes/Music, Fission, VLC, all the combined tracks are played
+
+## Try it out
+If you run 
+
+`Fuzer.py --cover test_data/Fuzer.jpg test.mp3 test_data/*.mp3` 
+
+You will generate an mp3 file called test.mp3 with a cover image and audio that says
+> disc one track one disc one track two disc two track one disc two track two
