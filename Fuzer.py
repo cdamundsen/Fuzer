@@ -133,8 +133,8 @@ def sort_tracks(source_files, in_file_order):
     tracks_per_disc = {}
     track_list = []
     for in_file in source_files:
-        file_name = os.path.basename(in_file.name)
-        tag_info = EasyID3(in_file.name)
+        file_name = os.path.basename(in_file)
+        tag_info = EasyID3(in_file)
 
         total_discs = None
 
@@ -206,7 +206,8 @@ def write_file(tracks, out_name):
     is_first = True
     first_file_tags = None
     for in_file in tracks:
-        data = in_file.read()
+        with open(in_file, "rb") as inf:
+            data = inf.read()
         tag_type, tags, sound = split_tags_from_sound(data)
         if is_first:
             first_file_tags = tags
@@ -263,7 +264,7 @@ def add_cover_art(output_file, cover_file):
 @click.option("--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file")
 @click.option("--file-order", "-fo", is_flag=True)
 @click.argument("out_name", type=click.File("wb"))
-@click.argument("source_files", type=click.File("rb"), nargs=-1)
+@click.argument("source_files", type=click.Path(exists=True), nargs=-1)
 def fuzer(cover, file_order, out_name, source_files):
     """
     This script takes a list of mp3 files on the command line, strips the ID3
