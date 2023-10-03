@@ -4,14 +4,15 @@ import os
 import sys
 
 import click
+import mutagen
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC
-from mutagen.mp3 import MP3  
+from mutagen.mp3 import MP3
 
 
 class TrackError(Exception):
     def __init__(self, problems):
-        sys.tracebacklimit = 0 # Don't show traceback for this exception
+        sys.tracebacklimit = 0  # Don't show traceback for this exception
         self.problems = problems
         self.problem_string = "\n".join(problems)
         self.message = self.problem_string
@@ -20,7 +21,7 @@ class TrackError(Exception):
 
 class AlreadyExistsError(Exception):
     def __init__(self, file_name):
-        sys.tracebacklimit = 0 # Don't show traceback for this exception
+        sys.tracebacklimit = 0  # Don't show traceback for this exception
         self.file_name = file_name
         self.message = f"{self.file_name} already exists. Delete or move it"
         super().__init__(self.message)
@@ -46,15 +47,15 @@ def split_tags_from_sound(mp3):
     music = None
     if mp3.find(b"TAG") == 0:
         tag_type = "v1"
-        tags = mp3[ : 128]
-        music = mp3[128 : ]
+        tags = mp3[:128]
+        music = mp3[128:]
     elif mp3.find(b"ID3") == 0:
         tag_type = "v2"
         # The tags are at the start of the file
         # v1 tags, 128 bytes long. Assuming extended v1 tags are not used
         tagSize = header_size(mp3[6:10])
-        tags = mp3[ : tagSize]
-        music = mp3[tagSize : ]
+        tags = mp3[:tagSize]
+        music = mp3[tagSize:]
     else:
         print("tags not at the start")
     return tag_type, tags, music
@@ -67,7 +68,7 @@ def header_size(size_bytes):
     #
     # Takes bytes 6-10 of the tag section and calculates the size of the tag
     # portion.
-    # 
+    #
     # Cut from spec:
     # The ID3 tag size is encoded with four bytes where the first bit (bit 7)
     # is set to zero in every byte, making a total of 28 bits. The zeroed bits
@@ -83,7 +84,7 @@ def header_size(size_bytes):
     sizeList.reverse()
     for i, c in enumerate(sizeList):
         try:
-            #size += pow(128, i) * ord(c)
+            # size += pow(128, i) * ord(c)
             size += pow(128, i) * c
         except:
             print(f"type(c) = {type(c)}")
@@ -103,7 +104,7 @@ def sort_tracks(source_files, in_file_order):
     files and error checking to ensure that there are no gaps in the disc or
     track numbers. The User, though is allowed to specify that the tracks
     should be combined in the order in which they were presented on the command
-    line. In this case, the outer dictionary has a single disc key of 1 and the inner dictionary keys are the index of the file as passed in by the 
+    line. In this case, the outer dictionary has a single disc key of 1 and the inner dictionary keys are the index of the file as passed in by the
     Given the list of click.File ("rb") input mp3 files, reads the ID3 tags to
     determine the order of the tracks and saves a dictionary keyed on disc
     number, with sub-dictionaries keyed on track number with values that are
@@ -139,7 +140,9 @@ def sort_tracks(source_files, in_file_order):
         total_discs = None
 
         try:
-            disc_index, disc_count = [int(x) for x in tag_info["discnumber"][0].split("/")]
+            disc_index, disc_count = [
+                int(x) for x in tag_info["discnumber"][0].split("/")
+            ]
         except:
             problems.append(f"{file_name} missing disc info")
             continue
@@ -152,7 +155,9 @@ def sort_tracks(source_files, in_file_order):
             track_map[disc_index] = {}
 
         try:
-            track_index, track_count = [int(x) for x in tag_info["tracknumber"][0].split("/")]
+            track_index, track_count = [
+                int(x) for x in tag_info["tracknumber"][0].split("/")
+            ]
         except:
             problems.append(f"{file_name} missing track info")
             continue
@@ -160,8 +165,12 @@ def sort_tracks(source_files, in_file_order):
         if disc_index not in tracks_per_disc:
             tracks_per_disc[disc_index] = track_count
         elif tracks_per_disc[disc_index] != track_count:
-            raise TrackError([f"Disc {disc_index} has mutliple total tracks values {tracks_per_disc[disc_index]}, {track_count}"])
-        
+            raise TrackError(
+                [
+                    f"Disc {disc_index} has mutliple total tracks values {tracks_per_disc[disc_index]}, {track_count}"
+                ]
+            )
+
         track_map[disc_index][track_index] = in_file
 
     if len(track_map) != total_discs:
@@ -169,8 +178,9 @@ def sort_tracks(source_files, in_file_order):
 
     for d in sorted(tracks_per_disc):
         if tracks_per_disc[d] != len(track_map[d]):
-            problems.append(f"Disc {d} should have {tracks_per_disc[d]} tracks only {len(track_map[d])} found")
-
+            problems.append(
+                f"Disc {d} should have {tracks_per_disc[d]} tracks only {len(track_map[d])} found"
+            )
 
     if problems:
         raise TrackError(problems)
@@ -178,14 +188,16 @@ def sort_tracks(source_files, in_file_order):
     for disc_index in track_map:
         max_track = max(track_map[disc_index].keys())
         if len(track_map[disc_index]) != max_track:
-            problems.append(f"Disc {disc_index} expected {max_track} tracks only found {len(track_map[disc_index])}")
+            problems.append(
+                f"Disc {disc_index} expected {max_track} tracks only found {len(track_map[disc_index])}"
+            )
     if problems:
         raise TrackError(problems)
-    
+
     for d in sorted(track_map):
         for t in sorted(track_map[d]):
             track_list.append(track_map[d][t])
-    
+
     return track_list
     ## sort_tracks ##
 
@@ -193,51 +205,44 @@ def sort_tracks(source_files, in_file_order):
 def write_file(tracks, out_name):
     """
     Given the dictionary of tracks, combines all the individual mp3 files into
-    one big file. Adds the ID3 tags from the first file to the big file
+    one big file.
 
     Arguments:
-    
+
         tracks: the dictionary containing all the tracks to be combined
 
         out_name: the click.File opened in "wb" mode into which the mp3 files
         from the tracks dictionary are combined.
     """
     print(f"Writing tracks to {out_name.name}...")
-    is_first = True
-    first_file_tags = None
     for in_file in tracks:
         with open(in_file, "rb") as inf:
             data = inf.read()
-        tag_type, tags, sound = split_tags_from_sound(data)
-        if is_first:
-            first_file_tags = tags
-            is_first = False
-        if tag_type == "v2":
-            out_name.write(first_file_tags)
+        _, _, sound = split_tags_from_sound(data)
         out_name.write(sound)
-    if tag_type == "v1":
-        out_name.write(first_file_tags)
-        out_name.close()
     ## write_file ##
 
 
-def update_tags(output_file):
+def add_tags(first_file, output_file):
     """
-    When the big mp3 file is created the ID3 tags from the first track are
-    copied into the file. This function copies the album tag into the title tag
-    and changes the tracknumber and discnumber tags to 1/1.
+    Copies the tags from the first input file to the output file and sets title tag
+    into the title tag as well as the the tracknumber and discnumber tags to 1/1.
 
     Arguments:
-
+        first_file: the path to the first input file, from which the tags are
+        obtained.
         output_file: the name of the mp3 file.
     """
-    print("Fixing tags...")
-    mp3file = MP3(output_file, ID3=EasyID3)
-    mp3file["title"] = mp3file["album"]
-    mp3file["tracknumber"] = ["1/1"]
-    mp3file["discnumber"] = ["1/1"]
-    mp3file.save()
-    ## update_tags ##
+    print("Adding basic tags...")
+    destination_tags = mutagen.File(output_file, easy=True)
+    source_tags = EasyID3(first_file)
+    for tag in source_tags:
+        destination_tags[tag] = source_tags[tag]
+    destination_tags["title"] = destination_tags["album"]
+    destination_tags["tracknumber"] = ["1/1"]
+    destination_tags["discnumber"] = ["1/1"]
+    destination_tags.save(v2_version=4)
+    ## add_tags ##
 
 
 def add_cover_art(output_file, cover_file):
@@ -251,52 +256,54 @@ def add_cover_art(output_file, cover_file):
         cover_file: a jpeg image file that is a click.File in "rb" mode
     """
     print("Adding cover art...")
-    #with open(cover_file, "rb") as image_data:
-        #album_art = image_data.read()
     album_art = cover_file.read()
     audio = MP3(output_file, ID3=ID3)
-    audio.tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc=u"Cover", data=album_art))
-    audio.save(v2_version=3)
+    audio.tags.add(
+        APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=album_art)
+    )
+    audio.save(v2_version=4)
     ## add_cover_art ##
 
 
 @click.command()
-@click.option("--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file")
+@click.option(
+    "--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file"
+)
 @click.option("--file-order", "-fo", is_flag=True)
 @click.argument("out_name", type=click.File("wb"))
 @click.argument("source_files", type=click.Path(exists=True), nargs=-1)
 def fuzer(cover, file_order, out_name, source_files):
     """
-    This script takes a list of mp3 files on the command line, strips the ID3
-    tags concatenates the sound portions, adds the ID3 tags from the first file
-    to the beginning (if they"re v2 tags) or the end (if they"re v1 tags) and
-    saves the file in the file name specified on the command line.
+    This script takes a list of mp3 files on the command line, strips the ID3 tags
+    concatenates the sound portions, adds the ID3 tags from the first input file to the
+    output file and save it to the file name specified on the command line.
 
     The input files are combined in the order specified by disk and track info
-    in ID3 tags
+    in ID3 tags unless the User has said to do combine them in the order they are on
+    the command line
 
     Arguments:
 
         cover: optional jpeg file containing a cover image for the combined files
-
+        file_order: a flag, if set the files are concatenated in the order they are
+        specificed on the command line
         out_name: the name of the file into which the input mp3 files are
         concatenated.
-
         source_files: the individual mp3 files that are going to be combined.
     """
     if os.path.isfile(out_name.name):
         # Don"t overwrite an existing file
         raise AlreadyExistsError(out_name.name)
-    
+
     track_list = sort_tracks(source_files, file_order)
     write_file(track_list, out_name)
-    update_tags(out_name.name)
+    add_tags(track_list[0], out_name.name)
 
     if cover:
         add_cover_art(out_name.name, cover)
 
     print("All done.")
-            
+
 
 ## Main ##
 if __name__ == "__main__":
