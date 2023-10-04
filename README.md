@@ -23,8 +23,7 @@ There are a few command line options as well:
 
 ## Caveats
 - Fuzer only handles mp3 files
-- When adding a cover image, Fuzer assumes it is a jpeg. But if the first track already has a cover image (of any format) it will be added to the output file
-- When playing the otuput file with Quicktime Player on Mac OS, it only plays the first track that was added to the file. When playing it with iTunes/Music, Fission, VLC, all the combined tracks are played
+- When adding a cover image, Fuzer assumes it is a jpeg.
 
 ## Try it out
 If you run 
