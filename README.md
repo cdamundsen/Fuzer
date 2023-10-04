@@ -14,7 +14,7 @@ The basic usage for Fuzer is
 
 By default Fuzer reads the discnumber and tracknumber ID3 tags to determine the order of the files when combining them. It copies
 the ID3 tags from the first file into the ID3 tags of the destination file. Finally, it sets both the tracknumber and discnumber tags of
-the destination file to 1/1 and the title tag to be the same as the album tag. It can also add a cover image of the --cover option is used.
+the destination file to 1/1 and the title tag to be the same as the album tag. It can also add a cover image if the --cover option is used.
 
 There are a few command line options as well:
 - `--help`: prints a helpful message
