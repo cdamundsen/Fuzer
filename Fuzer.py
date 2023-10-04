@@ -104,17 +104,16 @@ def sort_tracks(source_files, in_file_order):
     files and error checking to ensure that there are no gaps in the disc or
     track numbers. The User, though is allowed to specify that the tracks
     should be combined in the order in which they were presented on the command
-    line. In this case, the outer dictionary has a single disc key of 1 and the inner dictionary keys are the index of the file as passed in by the
+    line. In this case, the outer dictionary has a single disc key of 1 and the
+    inner dictionary keys are the index of the file as passed in by the
     Given the list of click.File ("rb") input mp3 files, reads the ID3 tags to
     determine the order of the tracks and saves a dictionary keyed on disc
     number, with sub-dictionaries keyed on track number with values that are
     individual mp3 files.
 
     Arguments:
-
         source_files: a list of click.File instances that are the mp3 files that
         are being combined
-
         in_file_order: Boolean, if True return the source_files in the order they
         appeared on the command line, if False sort the source_files by disc and
         track order in the ID3 tags
@@ -204,13 +203,11 @@ def sort_tracks(source_files, in_file_order):
 
 def write_file(tracks, out_name):
     """
-    Given the dictionary of tracks, combines all the individual mp3 files into
+    Given the list of tracks, combines all the individual mp3 files into
     one big file.
 
     Arguments:
-
-        tracks: the dictionary containing all the tracks to be combined
-
+        tracks: the list containing all the tracks to be combined
         out_name: the click.File opened in "wb" mode into which the mp3 files
         from the tracks dictionary are combined.
     """
@@ -226,7 +223,7 @@ def write_file(tracks, out_name):
 def add_tags(first_file, output_file):
     """
     Copies the tags from the first input file to the output file and sets title tag
-    into the title tag as well as the the tracknumber and discnumber tags to 1/1.
+    to the album tag as well as the the tracknumber and discnumber tags to 1/1.
 
     Arguments:
         first_file: the path to the first input file, from which the tags are
@@ -250,9 +247,7 @@ def add_cover_art(output_file, cover_file):
     Adds a cover image to the mp3 that was created
 
     Arguments:
-
         output_file: the name of the output file (not a click.File)
-
         cover_file: a jpeg image file that is a click.File in "rb" mode
     """
     print("Adding cover art...")
@@ -283,7 +278,6 @@ def fuzer(cover, file_order, out_name, source_files):
     the command line
 
     Arguments:
-
         cover: optional jpeg file containing a cover image for the combined files
         file_order: a flag, if set the files are concatenated in the order they are
         specificed on the command line
