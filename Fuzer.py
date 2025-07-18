@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import os
+import re
 import sys
 
 import click
@@ -200,6 +201,22 @@ def sort_tracks(source_files, in_file_order):
     return track_list
     ## sort_tracks ##
 
+def get_output_file_name(a_file):
+    """
+    Reads the album tag from an input mp3 file and generates a safe output file
+    name
+
+    Arguments:
+        a_file - one of the input mp3 files
+    
+    Returns: a string, that should be a safe name that is based on the album tag
+    in the file
+    """
+    source_tags = EasyID3(a_file)
+    album = source_tags["album"][0]
+    album = re.sub('[^0-9a-zA-Z]+', '_', album)
+    return album + ".mp3"
+
 
 def write_file(tracks, out_name):
     """
@@ -211,7 +228,7 @@ def write_file(tracks, out_name):
         out_name: the click.File opened in "wb" mode into which the mp3 files
         from the tracks dictionary are combined.
     """
-    print(f"Writing tracks to {out_name.name}...")
+    print(f"Writing tracks to {out_name}...")
     for in_file in tracks:
         with open(in_file, "rb") as inf:
             data = inf.read()
@@ -264,10 +281,12 @@ def add_cover_art(output_file, cover_file):
 @click.option(
     "--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file"
 )
+@click.option(
+    "--title", "-t", type=click.STRING, default=None, help="The name of the output file"
+)
 @click.option("--file-order", "-fo", is_flag=True)
-@click.argument("out_name", type=click.File("wb"))
 @click.argument("source_files", type=click.Path(exists=True), nargs=-1)
-def fuzer(cover, file_order, out_name, source_files):
+def fuzer(cover, title, file_order, source_files):
     """
     This script takes a list of mp3 files on the command line, strips the ID3 tags
     concatenates the sound portions, adds the ID3 tags from the first input file to the
@@ -278,23 +297,36 @@ def fuzer(cover, file_order, out_name, source_files):
     the command line
 
     Arguments:
-        cover: optional jpeg file containing a cover image for the combined files
+        cover: optional, jpeg file containing a cover image for the combined files
+        title: optional, if set it is the name of the output file, otherwise the file
+        name is generated from the title tag of the first file
         file_order: a flag, if set the files are concatenated in the order they are
         specificed on the command line
-        out_name: the name of the file into which the input mp3 files are
         concatenated.
         source_files: the individual mp3 files that are going to be combined.
     """
-    if os.path.isfile(out_name.name):
-        # Don"t overwrite an existing file
-        raise AlreadyExistsError(out_name.name)
+    print(f"cover = {cover.name}")
+    print(f"title = {title}")
+    print(f"source_files = {source_files}")
 
     track_list = sort_tracks(source_files, file_order)
-    write_file(track_list, out_name)
-    add_tags(track_list[0], out_name.name)
+
+    if title:
+        out_name = title
+    else:
+        out_name = get_output_file_name(track_list[0])
+
+    if os.path.isfile(out_name):
+        # Don't overwrite an existing file
+        raise AlreadyExistsError(out_name)
+
+    with open(out_name, "wb") as out_file:
+        write_file(track_list, out_file)
+        
+    add_tags(track_list[0], out_name)
 
     if cover:
-        add_cover_art(out_name.name, cover)
+        add_cover_art(out_name, cover)
 
     print("All done.")
 
