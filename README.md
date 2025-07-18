@@ -19,6 +19,7 @@ the destination file to 1/1 and the title tag to be the same as the album tag. I
 There are a few command line options as well:
 - `--help`: prints a helpful message
 - `--cover` (or `-c`): takes a path to a jpeg file that you'd like to have added as the cover image for the output file.
+- `--title` (or `-t`): lets you specify the name of the output file. Otherwise Fuzer generates on from the album tag in the first file of the input set
 - `--file-order` (or `-fo`): a flag, that if set combines the input files in the order they were entered on the command line, rather than reading ID3 tags for the order
 
 ## Caveats
@@ -28,7 +29,13 @@ There are a few command line options as well:
 ## Try it out
 If you run 
 
-`Fuzer.py --cover test_data/Fuzer.jpg test.mp3 test_data/*.mp3` 
+`Fuzer.py --cover test_data/Fuzer.jpg -title test.mp3 test_data/*.mp3` 
 
 You will generate an mp3 file called test.mp3 with a cover image and audio that says
 > disc one track one disc one track two disc two track one disc two track two
+
+Alternatively you can run
+
+`Fuzer.py --cover test_data/Fuzer.jpg test_data/*.mp3`
+
+And you will get an identical file, but this time called Fuzer_Test_Data.mp3.
