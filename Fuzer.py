@@ -277,44 +277,30 @@ def add_cover_art(output_file, cover_file):
     ## add_cover_art ##
 
 
-@click.command()
-@click.option(
-    "--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file"
-)
-@click.option(
-    "--title", "-t", type=click.STRING, default=None, help="The name of the output file"
-)
-@click.option("--file-order", "-fo", is_flag=True)
-@click.argument("source_files", type=click.Path(exists=True), nargs=-1)
-def fuzer(cover, title, file_order, source_files):
+def run_fuzer(source_files, cover=None, title=None, dest_dir=None, file_order=False):
     """
-    This script takes a list of mp3 files on the command line, strips the ID3 tags
-    concatenates the sound portions, adds the ID3 tags from the first input file to the
-    output file and save it to the file name specified on the command line.
-
-    The input files are combined in the order specified by disk and track info
-    in ID3 tags unless the User has said to do combine them in the order they are on
-    the command line
+    This function actually does the work described in fuzer.
 
     Arguments:
+        source_files: the individual mp3 files that are going to be combined.
         cover: optional, jpeg file containing a cover image for the combined files
         title: optional, if set it is the name of the output file, otherwise the file
         name is generated from the title tag of the first file
+        dest_dir: optional, if set the directory where the new file should be written
         file_order: a flag, if set the files are concatenated in the order they are
         specificed on the command line
-        concatenated.
-        source_files: the individual mp3 files that are going to be combined.
     """
-    print(f"cover = {cover.name}")
-    print(f"title = {title}")
-    print(f"source_files = {source_files}")
-
     track_list = sort_tracks(source_files, file_order)
 
     if title:
         out_name = title
     else:
         out_name = get_output_file_name(track_list[0])
+
+    if dest_dir:
+        if dest_dir[-1] != os.path.sep:
+            dest_dir += os.path.sep
+        out_name = dest_dir + out_name
 
     if os.path.isfile(out_name):
         # Don't overwrite an existing file
@@ -328,6 +314,40 @@ def fuzer(cover, title, file_order, source_files):
     if cover:
         add_cover_art(out_name, cover)
 
+
+@click.command()
+@click.option(
+    "--cover", "-c", type=click.File("rb"), default=None, help="JPEG cover art file"
+)
+@click.option(
+    "--title", "-t", type=click.STRING, default=None, help="The name of the output file"
+)
+@click.option(
+    "--dest_dir", '-dd', type=click.Path(exists=True), help="The directory where the file should be written"
+)
+@click.option("--file-order", "-fo", is_flag=True)
+@click.argument("source_files", type=click.Path(exists=True), nargs=-1)
+def fuzer(cover, title, dest_dir, file_order, source_files):
+    """
+    This script takes a list of mp3 files on the command line, strips the ID3 tags
+    concatenates the sound portions, adds the ID3 tags from the first input file to the
+    output file and save it to the file name specified on the command line.
+
+    The input files are combined in the order specified by disk and track info
+    in ID3 tags unless the User has said to do combine them in the order they are on
+    the command line
+
+    Arguments:
+        cover: optional, jpeg file containing a cover image for the combined files
+        title: optional, if set it is the name of the output file, otherwise the file
+        name is generated from the title tag of the first file
+        dest_dir: optional, if set the directory where the new file should be written
+        file_order: a flag, if set the files are concatenated in the order they are
+        specificed on the command line
+        concatenated.
+        source_files: the individual mp3 files that are going to be combined.
+    """
+    run_fuzer(source_files, cover, title, dest_dir, file_order)
     print("All done.")
 
 
