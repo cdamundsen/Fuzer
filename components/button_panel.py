@@ -8,6 +8,7 @@ current_directory = state.create("current_directory")
 input_files = state.create("input_files")
 cover_file = state.create("cover_file")
 
+
 @component
 def ButtonPanel():
     def on_mp3_button_click():
@@ -38,25 +39,25 @@ def ButtonPanel():
         title = None
         file_order = False
 
-        print(f"-------> destination_dir = {destination_dir}")
-        print(f"-------> type(destination_dir) = {type(destination_dir)}")
-        print(f"-------> mp3_files = {mp3_files}")
-        print(f"-------> type(mp3_files) = {type(mp3_files)}")
-        print(f"-------> cover_image = {cover_image}")
-        print(f"-------> type(cover_image) = {type(cover_image)}")
-        print(f"-------> title = {title}")
-        print(f"-------> type(title) = {type(title)}")
-        print(f"-------> file_order = {file_order}")
-        print(f"-------> type(file_order) = {type(file_order)}")
         run_fuzer(mp3_files, cover=cover_image, dest_dir=destination_dir)
     
+    clear_mp3_button_props = {"class": "add-button-disabled"} if input_files.get() == [] else {"class": "add-button"}
+    clear_cover_image_props = {"class": "add-button-disabled"} if cover_file.get() == "Select a jpeg for the cover..." else {"class": "add-button"}
+    #if selected_mp3_files.get() == []:
+        #print("No selected mp3s")
+        #clear_mp3_button_props = {"class": "add-button-disabled"}
+    #else:
+        #clear_mp3_button_props = {"class": "add-button"}
 
     return ui.Column(
         children=[
+            #ui.Button("cover image --->", on_click=lambda: on_image_button_click(), props={"class": "add-button"}),
             ui.Button("cover image --->", on_click=lambda: on_image_button_click(), props={"class": "add-button"}),
-            ui.Button("Clear cover image", on_click=lambda: on_clear_image_button_click(), props={"class": "add-button"}),
+            #ui.Button("Clear cover image", on_click=lambda: on_clear_image_button_click(), props={"class": "add-button"}),
+            ui.Button("Clear cover image", on_click=lambda: on_clear_image_button_click(), props=clear_cover_image_props),
             ui.Button("mp3 files --->", on_click=lambda: on_mp3_button_click(), props={"class": "add-button"}),
-            ui.Button("Clear mp3 files", on_click=lambda: on_clear_mp3_button(), props={"class": "add-button"}),
-            ui.Button("Make book", on_click=lambda: make_book(), props={"class": "add-button"}),
+            ui.Button("Clear mp3 files", on_click=lambda: on_clear_mp3_button(), props=clear_mp3_button_props),
+            #ui.Button("Make book", on_click=lambda: make_book(), props={"class": "add-button"}),
+            ui.Button("Make book", on_click=lambda: make_book(), props=clear_mp3_button_props),
         ]
     )

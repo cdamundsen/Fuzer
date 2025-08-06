@@ -84,7 +84,7 @@ def apply_base_theme():
                 "margin-bottom": "15px",
             },
             "#navbar .brand": {
-                "font-size": "18px",
+                "font-size": "36px",
                 "font-weight": "bold",
                 "color": "$primary-color",
             },
@@ -131,6 +131,17 @@ def apply_base_theme():
             },
              ".add-button:hover": {
                 "background-color": "$hover-color",
+            },
+            ".add-button-disabled": {
+                "background-color": "$disabled-color",
+                "color": "$primary-text-color",
+                "border": "none",
+                "border-radius": "6px",
+                "font-weight": "bold",
+                "padding": "8px 20px",
+            },
+             ".add-button-disabled:hover": {
+                "background-color": "$disabled-color",
             },
 
             # --- Task List & Items ---
