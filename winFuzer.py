@@ -43,17 +43,20 @@ def App():
     def on_input_file_change(input_files):
         ui.clear_layout(input_files_container.layout())
         input_files_container.add_child(InputFilesPanel())
+        ui.clear_layout(button_container.layout())
+        button_container.add_child(ButtonPanel())
 
     def on_cover_file_change(cover_file):
         ui.clear_layout(input_files_container.layout())
         input_files_container.add_child(InputFilesPanel())
+        ui.clear_layout(button_container.layout())
+        button_container.add_child(ButtonPanel())
 
     state.subscribe("current_directory", on_dir_change)
     state.subscribe("input_files", on_input_file_change)
     state.subscribe("cover_file", on_cover_file_change)
 
     on_dir_change(state.get("current_directory")) # Initial page load
-    button_container.add_child(ButtonPanel())
 
     return ui.Column(
         children=[
