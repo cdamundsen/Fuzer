@@ -43,21 +43,13 @@ def ButtonPanel():
     
     clear_mp3_button_props = {"class": "add-button-disabled"} if input_files.get() == [] else {"class": "add-button"}
     clear_cover_image_props = {"class": "add-button-disabled"} if cover_file.get() == "Select a jpeg for the cover..." else {"class": "add-button"}
-    #if selected_mp3_files.get() == []:
-        #print("No selected mp3s")
-        #clear_mp3_button_props = {"class": "add-button-disabled"}
-    #else:
-        #clear_mp3_button_props = {"class": "add-button"}
 
     return ui.Column(
         children=[
-            #ui.Button("cover image --->", on_click=lambda: on_image_button_click(), props={"class": "add-button"}),
             ui.Button("cover image --->", on_click=lambda: on_image_button_click(), props={"class": "add-button"}),
-            #ui.Button("Clear cover image", on_click=lambda: on_clear_image_button_click(), props={"class": "add-button"}),
             ui.Button("Clear cover image", on_click=lambda: on_clear_image_button_click(), props=clear_cover_image_props),
             ui.Button("mp3 files --->", on_click=lambda: on_mp3_button_click(), props={"class": "add-button"}),
             ui.Button("Clear mp3 files", on_click=lambda: on_clear_mp3_button(), props=clear_mp3_button_props),
-            #ui.Button("Make book", on_click=lambda: make_book(), props={"class": "add-button"}),
             ui.Button("Make book", on_click=lambda: make_book(), props=clear_mp3_button_props),
         ]
     )

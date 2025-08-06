@@ -57,7 +57,6 @@ def App():
     state.subscribe("cover_file", on_cover_file_change)
 
     on_dir_change(state.get("current_directory")) # Initial page load
-    #button_container.add_child(ButtonPanel())
 
     return ui.Column(
         children=[
