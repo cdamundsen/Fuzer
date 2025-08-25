@@ -1,5 +1,14 @@
 #! /usr/bin/env python
 
+"""
+Standalone and callable routine that combines multiple mp3 files into one big
+file. It can either use the disk and track number info to order the files or
+use the order the files were presented on the command line. Optionally a cover
+image can be added and the name of the final file specified. See the doc-string
+for the fuzer function below for more details.
+"""
+
+from io import BufferedReader
 import os
 import re
 import sys
@@ -29,7 +38,7 @@ class AlreadyExistsError(Exception):
 
 
 ## Functions ##
-def split_tags_from_sound(mp3):
+def split_tags_from_sound(mp3:BufferedReader) -> tuple[str, bytes, bytes]:
     """
     # split_tags_from_sound(mp3)
     #
@@ -46,14 +55,22 @@ def split_tags_from_sound(mp3):
     """
     tags = None
     music = None
+    #mp3_contents = mp3.read()
+    #if mp3_contents.find(b"TAG") == 0:
     if mp3.find(b"TAG") == 0:
         tag_type = "v1"
+        #tags = mp3_contents[:128]
+        #music = mp3_contents[128:]
         tags = mp3[:128]
         music = mp3[128:]
+    #elif mp3_contents.find(b"ID3") == 0:
     elif mp3.find(b"ID3") == 0:
         tag_type = "v2"
         # The tags are at the start of the file
         # v1 tags, 128 bytes long. Assuming extended v1 tags are not used
+        #tagSize = header_size(mp3_contents[6:10])
+        #tags = mp3_contents[:tagSize]
+        #music = mp3_contents[tagSize:]
         tagSize = header_size(mp3[6:10])
         tags = mp3[:tagSize]
         music = mp3[tagSize:]
@@ -63,7 +80,7 @@ def split_tags_from_sound(mp3):
     ## split_tags_from_sound ##
 
 
-def header_size(size_bytes):
+def header_size(size_bytes:bytes) -> int:
     """
     # header_size(size_bytes)
     #
@@ -96,7 +113,7 @@ def header_size(size_bytes):
     ## header_size ##
 
 
-def sort_tracks(source_files, in_file_order):
+def sort_tracks(source_files:list[click.File], in_file_order:bool) -> list[click.File]:
     """
     Constructs a dictionary of dictionaries where the outer keys the disc
     numbers and the keys of the inner dictionaries are the track numbers.
@@ -119,7 +136,8 @@ def sort_tracks(source_files, in_file_order):
         appeared on the command line, if False sort the source_files by disc and
         track order in the ID3 tags
 
-    Returns: the above-described dictionary
+    Returns: a list of the source files in the order in which they should be
+    concatenated
 
     Side Effects: If any problmes are encountered, missing track numbers, disc
     numbers, etc, the program exits after printing the list of problems encountered
@@ -143,14 +161,14 @@ def sort_tracks(source_files, in_file_order):
             disc_index, disc_count = [
                 int(x) for x in tag_info["discnumber"][0].split("/")
             ]
-        except:
+        except (TrackError, KeyError):
             problems.append(f"{file_name} missing disc info")
             continue
 
         if not total_discs:
             total_discs = disc_count
         elif total_discs != disc_count:
-            raise TrackError(["Disc count mismatch {total_discs} != {disc_count}"])
+            raise TrackError([f"Disc count mismatch {total_discs} != {disc_count}"])
         if disc_index not in track_map:
             track_map[disc_index] = {}
 
@@ -158,7 +176,7 @@ def sort_tracks(source_files, in_file_order):
             track_index, track_count = [
                 int(x) for x in tag_info["tracknumber"][0].split("/")
             ]
-        except:
+        except (TrackError, KeyError):
             problems.append(f"{file_name} missing track info")
             continue
 
@@ -174,12 +192,12 @@ def sort_tracks(source_files, in_file_order):
         track_map[disc_index][track_index] = in_file
 
     if len(track_map) != total_discs:
-        problems.append(f"Expected {total_discs} only found {len(track_map)}")
+        problems.append(f"Expected {total_discs} discs only found {len(track_map)}")
 
     for d in sorted(tracks_per_disc):
         if tracks_per_disc[d] != len(track_map[d]):
             problems.append(
-                f"Disc {d} should have {tracks_per_disc[d]} tracks only {len(track_map[d])} found"
+                f"Tag Error: Disc {d} should have {tracks_per_disc[d]} tracks only {len(track_map[d])} found"
             )
 
     if problems:
@@ -201,24 +219,25 @@ def sort_tracks(source_files, in_file_order):
     return track_list
     ## sort_tracks ##
 
-def get_output_file_name(a_file):
+
+def get_output_file_name(a_file:click.File) -> str:
     """
     Reads the album tag from an input mp3 file and generates a safe output file
     name
 
     Arguments:
         a_file - one of the input mp3 files
-    
+
     Returns: a string, that should be a safe name that is based on the album tag
     in the file
     """
     source_tags = EasyID3(a_file)
     album = source_tags["album"][0]
-    album = re.sub('[^0-9a-zA-Z]+', '_', album)
+    album = re.sub("[^0-9a-zA-Z]+", "_", album)
     return album + ".mp3"
 
 
-def write_file(tracks, out_name):
+def write_file(tracks:list[click.File], out_name:str) -> None:
     """
     Given the list of tracks, combines all the individual mp3 files into
     one big file.
@@ -237,7 +256,7 @@ def write_file(tracks, out_name):
     ## write_file ##
 
 
-def add_tags(first_file, output_file):
+def add_tags(first_file:str, output_file:str) -> None:
     """
     Copies the tags from the first input file to the output file and sets title tag
     to the album tag as well as the the tracknumber and discnumber tags to 1/1.
@@ -259,7 +278,7 @@ def add_tags(first_file, output_file):
     ## add_tags ##
 
 
-def add_cover_art(output_file, cover_file):
+def add_cover_art(output_file:str, cover_file:click.File) -> None:
     """
     Adds a cover image to the mp3 that was created
 
@@ -277,7 +296,14 @@ def add_cover_art(output_file, cover_file):
     ## add_cover_art ##
 
 
-def run_fuzer(source_files, cover=None, title=None, dest_dir=None, file_order=False):
+def run_fuzer(
+    source_files,
+    cover=None,
+    title=None,
+    dest_dir=None,
+    file_order=False,
+    raise_exceptions=True,
+) -> str|None:
     """
     This function actually does the work described in fuzer.
 
@@ -289,8 +315,20 @@ def run_fuzer(source_files, cover=None, title=None, dest_dir=None, file_order=Fa
         dest_dir: optional, if set the directory where the new file should be written
         file_order: a flag, if set the files are concatenated in the order they are
         specificed on the command line
+        raise_exceptions: optional, defaults to True, if False it returns a list of
+        stings if problems were encountered. When running from the command line,
+        exceptions are the way to go, but when called from winFuzer, strings are better
+        since we want to display helpful messages in the UI
     """
-    track_list = sort_tracks(source_files, file_order)
+    try:
+        track_list = sort_tracks(source_files, file_order)
+    except TrackError as te:
+        if raise_exceptions:
+            raise
+        else:
+            print(f"--->te.message = {te.message}")
+            print(f"--->type(te.message) = {type(te.message)}")
+            return te.message
 
     if title:
         out_name = title
@@ -304,15 +342,20 @@ def run_fuzer(source_files, cover=None, title=None, dest_dir=None, file_order=Fa
 
     if os.path.isfile(out_name):
         # Don't overwrite an existing file
-        raise AlreadyExistsError(out_name)
+        if raise_exceptions:
+            raise AlreadyExistsError(out_name)
+        else:
+            return f"{out_name} already exists. Delete or move it"
 
     with open(out_name, "wb") as out_file:
         write_file(track_list, out_file)
-        
+
     add_tags(track_list[0], out_name)
 
     if cover:
         add_cover_art(out_name, cover)
+    
+    return f"All done: {out_name}"
 
 
 @click.command()
@@ -323,7 +366,10 @@ def run_fuzer(source_files, cover=None, title=None, dest_dir=None, file_order=Fa
     "--title", "-t", type=click.STRING, default=None, help="The name of the output file"
 )
 @click.option(
-    "--dest_dir", '-dd', type=click.Path(exists=True), help="The directory where the file should be written"
+    "--dest_dir",
+    "-dd",
+    type=click.Path(exists=True),
+    help="The directory where the file should be written",
 )
 @click.option("--file-order", "-fo", is_flag=True)
 @click.argument("source_files", type=click.Path(exists=True), nargs=-1)
